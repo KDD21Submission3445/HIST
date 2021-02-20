@@ -15,4 +15,4 @@ cd HIST
 python hist.py
 ```
 The git clone command may take some time because the data file is large.
-The csi 500 data is Available at [here](https://drive.google.com/file/d/1EZwm9pPMK-8UiMwGaWP5BeOhnOJeEv_-/view?usp=sharing)
+The csi 500 data is available at [here](https://drive.google.com/file/d/1Vne9_oF2RRLKe4Pq_MER67C4eI-YpMwR/view?usp=sharing), you can modify the input data (line 672 to 680 in hist.py) to run the code on csi 500.
