@@ -15,4 +15,4 @@ cd HIST
 python hist.py
 ```
 The git clone command may take some time because the data file is large.
-We do not upload the csi 500 dataset due to the 1 GB limitation of git LFS data storage.
+The csi 500 data is Available at [here](https://drive.google.com/file/d/1EZwm9pPMK-8UiMwGaWP5BeOhnOJeEv_-/view?usp=sharing)
