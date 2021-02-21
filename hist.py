@@ -230,33 +230,33 @@ class HIST(nn.Module):
         self.fc_out_indi = nn.Linear(hidden_size, 1)
         self.fc_out = nn.Linear(hidden_size, 1)
 
-    def forward(self, x, tag_matrix, market_value):
+    def forward(self, x, concept_matrix, market_value):
         x_hidden = x.reshape(len(x), self.d_feat, -1) # [N, F, T]
         x_hidden = x_hidden.permute(0, 2, 1) # [N, T, F]
         x_hidden, _ = self.gru(x_hidden)
         x_hidden = x_hidden[:, -1, :]
 
-        # Predefined Tag Module
-        market_value_matrix = market_value.reshape(market_value.shape[0], 1).repeat(1, tag_matrix.shape[1])
-        stock_to_tag = tag_matrix * market_value_matrix
+        # Predefined Concept Module
+        market_value_matrix = market_value.reshape(market_value.shape[0], 1).repeat(1, concept_matrix.shape[1])
+        stock_to_concept = concept_matrix * market_value_matrix
         
-        stock_to_tag_sum = torch.sum(stock_to_tag, 0).reshape(1, -1).repeat(stock_to_tag.shape[0], 1)
-        stock_to_tag_sum = stock_to_tag_sum.mul(tag_matrix)
+        stock_to_concept_sum = torch.sum(stock_to_concept, 0).reshape(1, -1).repeat(stock_to_concept.shape[0], 1)
+        stock_to_concept_sum = stock_to_concept_sum.mul(concept_matrix)
 
-        stock_to_tag_sum = stock_to_tag_sum + (torch.ones(stock_to_tag.shape[0], stock_to_tag.shape[1]).to(device))
-        stock_to_tag = stock_to_tag / stock_to_tag_sum
-        hidden = torch.t(stock_to_tag).mm(x_hidden)
+        stock_to_concept_sum = stock_to_concept_sum + (torch.ones(stock_to_concept.shape[0], stock_to_concept.shape[1]).to(device))
+        stock_to_concept = stock_to_concept / stock_to_concept_sum
+        hidden = torch.t(stock_to_concept).mm(x_hidden)
         
         hidden = hidden[hidden.sum(1)!=0]
-        stock_to_tag = x_hidden.mm(torch.t(hidden))
-        # stock_to_tag = cal_cos_similarity(x_hidden, hidden)
-        stock_to_tag = self.softmax_s2t(stock_to_tag)
-        hidden = torch.t(stock_to_tag).mm(x_hidden)
+        stock_to_concept = x_hidden.mm(torch.t(hidden))
+        # stock_to_concept = cal_cos_similarity(x_hidden, hidden)
+        stock_to_concept = self.softmax_s2t(stock_to_concept)
+        hidden = torch.t(stock_to_concept).mm(x_hidden)
         
-        tag_to_stock = cal_cos_similarity(x_hidden, hidden) 
-        tag_to_stock = self.softmax_t2s(tag_to_stock)
+        concept_to_stock = cal_cos_similarity(x_hidden, hidden) 
+        concept_to_stock = self.softmax_t2s(concept_to_stock)
 
-        e_shared_info = tag_to_stock.mm(hidden)
+        e_shared_info = concept_to_stock.mm(hidden)
         e_shared_info = self.fc_es(e_shared_info)
 
         e_shared_back = self.fc_es_back(e_shared_info)
@@ -265,27 +265,27 @@ class HIST(nn.Module):
 
         pred_es = self.fc_out_es(output_es).squeeze()
         
-        # Hidden Shared Information Module
+        # Hidden Concept Module
         i_shared_info = x_hidden - e_shared_back
         hidden = i_shared_info
-        i_stock_to_tag = cal_cos_similarity(i_shared_info, hidden)
+        i_stock_to_concept = cal_cos_similarity(i_shared_info, hidden)
 
-        dim = i_stock_to_tag.shape[0]
-        diag = i_stock_to_tag.diagonal(0)
-        i_stock_to_tag = i_stock_to_tag * (torch.ones(dim, dim) - torch.eye(dim)).to(device)
+        dim = i_stock_to_concept.shape[0]
+        diag = i_stock_to_concept.diagonal(0)
+        i_stock_to_concept = i_stock_to_concept * (torch.ones(dim, dim) - torch.eye(dim)).to(device)
         row = torch.linspace(0,dim-1,dim).to(device).long()
-        column =i_stock_to_tag.max(1)[1].long()
-        value = i_stock_to_tag.max(1)[0]
-        i_stock_to_tag[row, column] = 10
-        i_stock_to_tag[i_stock_to_tag!=10]=0
-        i_stock_to_tag[row, column] = value
-        i_stock_to_tag = i_stock_to_tag + torch.diag_embed((i_stock_to_tag.sum(0)!=0).float()*diag)
-        hidden = torch.t(i_shared_info).mm(i_stock_to_tag).t()
+        column =i_stock_to_concept.max(1)[1].long()
+        value = i_stock_to_concept.max(1)[0]
+        i_stock_to_concept[row, column] = 10
+        i_stock_to_concept[i_stock_to_concept!=10]=0
+        i_stock_to_concept[row, column] = value
+        i_stock_to_concept = i_stock_to_concept + torch.diag_embed((i_stock_to_concept.sum(0)!=0).float()*diag)
+        hidden = torch.t(i_shared_info).mm(i_stock_to_concept).t()
         hidden = hidden[hidden.sum(1)!=0]
 
-        i_tag_to_stock = cal_cos_similarity(i_shared_info, hidden)
-        i_tag_to_stock = self.softmax_t2s(i_tag_to_stock)
-        i_shared_info = i_tag_to_stock.mm(hidden)
+        i_concept_to_stock = cal_cos_similarity(i_shared_info, hidden)
+        i_concept_to_stock = self.softmax_t2s(i_concept_to_stock)
+        i_shared_info = i_concept_to_stock.mm(hidden)
         i_shared_info = self.fc_is(i_shared_info)
 
         i_shared_back = self.fc_is_back(i_shared_info)
@@ -381,7 +381,7 @@ def pprint(*args):
 
 
 global_step = -1
-def train_epoch(epoch, model, optimizer, train_loader, writer, tag_matrix, date_index, args):
+def train_epoch(epoch, model, optimizer, train_loader, writer, concept_matrix, date_index, args):
 
     global global_step
 
@@ -393,7 +393,7 @@ def train_epoch(epoch, model, optimizer, train_loader, writer, tag_matrix, date_
 
         feature, label, market_value, _, _ = train_loader.get(slc)
         if args.model_name == 'HIST':
-            pred = model(feature, tag_matrix[date_index[i]], market_value)
+            pred = model(feature, concept_matrix[date_index[i]], market_value)
         else:
             pred = model(feature)
         loss = loss_fn(pred, label, args)
@@ -404,7 +404,7 @@ def train_epoch(epoch, model, optimizer, train_loader, writer, tag_matrix, date_
         optimizer.step()
 
 
-def test_epoch(epoch, model, test_loader, writer, args, tag_matrix, date_index, prefix='Test'):
+def test_epoch(epoch, model, test_loader, writer, args, concept_matrix, date_index, prefix='Test'):
 
     model.eval()
 
@@ -417,7 +417,7 @@ def test_epoch(epoch, model, test_loader, writer, args, tag_matrix, date_index, 
 
         with torch.no_grad():
             if args.model_name == 'HIST':
-                pred = model(feature, tag_matrix[date_index[test_loader.start_index + i]], market_value)
+                pred = model(feature, concept_matrix[date_index[test_loader.start_index + i]], market_value)
             else:
                 pred = model(feature)
             loss = loss_fn(pred, label, args)
@@ -437,7 +437,7 @@ def test_epoch(epoch, model, test_loader, writer, args, tag_matrix, date_index, 
 
     return np.mean(losses), scores, mse, mae, ic, rank_ic
 
-def inference(model, data_loader, tag_matrix, date_index):
+def inference(model, data_loader, concept_matrix, date_index):
 
     model.eval()
 
@@ -447,7 +447,7 @@ def inference(model, data_loader, tag_matrix, date_index):
         feature, label, market_value, label0, index = data_loader.get(slc)
         with torch.no_grad():
             if args.model_name == 'HIST':
-                pred = model(feature, tag_matrix[date_index[data_loader.start_index + i]], market_value)
+                pred = model(feature, concept_matrix[date_index[data_loader.start_index + i]], market_value)
             else:
                 pred = model(feature)
             preds.append(pd.DataFrame({ 'score': pred.cpu().numpy(), 'label': label.cpu().numpy(), 'label0': label0.cpu().numpy(), }, index=index))
@@ -494,7 +494,6 @@ def main(args):
     seed = np.random.randint(1000000)
     np.random.seed(seed)
     torch.manual_seed(seed)
-    set_trace()
     suffix = "%s_dh%s_dn%s_drop%s_lr%s_bs%s_seed%s%s"%(
         args.model_name, args.hidden_size, args.num_layers, args.dropout,
         args.lr, args.batch_size, args.seed, args.annot
@@ -523,10 +522,10 @@ def main(args):
     pprint('create loaders...')
     train_loader, valid_loader, test_loader = create_loaders(args)
 
-    tag_matrix = np.load(args.tag_matrix)
+    concept_matrix = np.load(args.concept_matrix)
     date_index = np.load(args.date_index).astype(np.int32)
     if args.model_name == 'HIST':
-        tag_matrix = torch.Tensor(tag_matrix).to(device)
+        concept_matrix = torch.Tensor(concept_matrix).to(device)
 
     best_score = -np.inf
     best_epoch = 0
@@ -537,7 +536,7 @@ def main(args):
         pprint('Epoch:', epoch)
 
         pprint('training...')
-        train_epoch(epoch, model, optimizer, train_loader, writer, tag_matrix, date_index, args)
+        train_epoch(epoch, model, optimizer, train_loader, writer, concept_matrix, date_index, args)
         torch.save(model.state_dict(), output_path+'/model.bin.e'+str(epoch))
         torch.save(optimizer.state_dict(), output_path+'/optimizer.bin.e'+str(epoch))
 
@@ -547,9 +546,9 @@ def main(args):
         model.load_state_dict(avg_params)
 
         pprint('evaluating...')
-        train_loss, train_score, train_mse, train_mae, train_ic, train_rank_ic = test_epoch(epoch, model, train_loader, writer, args, tag_matrix, date_index, prefix='Train')
-        val_loss, val_score, val_mse, val_mae, val_ic, val_rank_ic = test_epoch(epoch, model, valid_loader, writer, args, tag_matrix, date_index, prefix='Valid')
-        test_loss, test_score, test_mse, test_mae, test_ic, test_rank_ic = test_epoch(epoch, model, test_loader, writer, args, tag_matrix, date_index, prefix='Test')
+        train_loss, train_score, train_mse, train_mae, train_ic, train_rank_ic = test_epoch(epoch, model, train_loader, writer, args, concept_matrix, date_index, prefix='Train')
+        val_loss, val_score, val_mse, val_mae, val_ic, val_rank_ic = test_epoch(epoch, model, valid_loader, writer, args, concept_matrix, date_index, prefix='Valid')
+        test_loss, test_score, test_mse, test_mae, test_ic, test_rank_ic = test_epoch(epoch, model, test_loader, writer, args, concept_matrix, date_index, prefix='Test')
 
         pprint('train_loss %.6f, valid_loss %.6f, test_loss %.6f'%(train_loss, val_loss, test_loss))
         pprint('train_score %.6f, valid_score %.6f, test_score %.6f'%(train_score, val_score, test_score))
@@ -579,7 +578,7 @@ def main(args):
     res = dict()
     for name in ['train', 'valid', 'test']:
 
-        pred= inference(model, eval(name+'_loader'), tag_matrix, date_index)
+        pred= inference(model, eval(name+'_loader'), concept_matrix, date_index)
         pred.to_pickle(output_path+'/pred.pkl.'+name)
 
         ic = pred.groupby(level='datetime').apply(
@@ -671,12 +670,12 @@ def parse_args():
 
     # input for csi 300
     parser.add_argument('--data_path', default='./data/csi300_07to19_30days.pkl')
-    parser.add_argument('--tag_matrix', default='./data/csi300_stock2tag_matrix.npy')
+    parser.add_argument('--concept_matrix', default='./data/csi300_stock2concept_matrix.npy')
     parser.add_argument('--date_index', default='./data/csi300_date_index.npy')
     
     # For csi 500 dataset, use the following inputs.
     # parser.add_argument('--data_path', default='./data/csi500_07to19_30days.pkl')
-    # parser.add_argument('--tag_matrix', default='./data/csi500_stock2tag_matrix.npy')
+    # parser.add_argument('--concept_matrix', default='./data/csi500_stock2concept_matrix.npy')
     # parser.add_argument('--date_index', default='./data/csi500_date_index.npy')
 
     parser.add_argument('--outdir', default='./output/csi300_hist')
