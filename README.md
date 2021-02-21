@@ -7,6 +7,13 @@ The code has been tested running under Python 3.6.10, with the following package
 - pandas == 1.1.4
 - tqdm == 4.46.1
 
+### Files in the folder
+- `data/`
+  - `csi300_07to19_30days.pkl`: the stock features (stock price and volume data) and labels;
+  - `csi300_stock2concept_matrix.npy`: the adjacent matrix between stocks and predefined concepts;
+  - `csi300_date_index.npy`: the index of each date's adjacent matrix between stocks and predefined concepts;
+
+
 ### Running the code
 Install the [Git Large File Storage (LFS)](https://git-lfs.github.com/) first.
 ```
