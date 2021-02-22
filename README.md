@@ -25,6 +25,6 @@ git clone https://github.com/KDD21Submission3445/HIST.git
 cd HIST
 python hist.py
 ```
-The git clone command may take some time because the data file is large.
+The git clone command may take some time because some data files are large.
 
 Besides the csi 300 data in the `data` file, the csi 300 and csi 500 data are also available at [here](https://drive.google.com/file/d/1DLigCu0cW5FJGCX6McdaEhd3zLubq4z0/view?usp=sharing), you can modify the input data (line 671 to 679 in hist.py) to run the code on csi 500.
